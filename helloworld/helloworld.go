@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 
-	"github.com/faruqfadhil/backend-golang-bootcamp/indonesia"
+	"github.com/faruqfadhil/backend-golang-bootcamp/helloworld/indonesia"
 )
 
 func main() {
