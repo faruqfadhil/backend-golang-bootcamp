@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/gomodule/redigo/redis"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 )
@@ -70,4 +71,28 @@ func main() {
 	}
 
 	router.Run("localhost:9000")
+}
+
+func initRedis() *redis.Pool {
+	redisHost := fmt.Sprintf("%s:%d", "localhost", 6379)
+	Redis := &redis.Pool{
+		MaxIdle:         80,
+		MaxActive:       100,
+		IdleTimeout:     time.Duration(10) * time.Minute,
+		MaxConnLifetime: time.Duration(10) * time.Minute,
+		Dial: func() (redis.Conn, error) {
+			c, err := redis.Dial("tcp", redisHost)
+			if err != nil {
+				return nil, err
+			}
+			return c, nil
+		},
+	}
+	conn := Redis.Get()
+	_, err := conn.Do("PING")
+	if err != nil {
+		panic(fmt.Sprintf("[ERR] Redis connection failed, %s", err))
+	}
+	defer conn.Close()
+	return Redis
 }
