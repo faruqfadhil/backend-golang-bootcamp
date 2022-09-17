@@ -4,6 +4,7 @@ import (
 	"book-api/core/module"
 	"book-api/handler"
 	"book-api/pkg/api"
+	redisInt "book-api/pkg/cache/redis"
 	"book-api/repository/auth"
 	"book-api/repository/book"
 	"fmt"
@@ -20,22 +21,23 @@ import (
 func main() {
 	accessTokenSecret := os.Getenv("ACCESS_TOKEN")
 	refreshTokenSecret := os.Getenv("REFRESH_TOKEN")
-	dbUsername := os.Getenv("DB_USERNAME")
-	dbPassword := os.Getenv("DB_PASSWORD")
-	dbName := os.Getenv("DB_NAME")
-	dbPort := os.Getenv("DB_PORT")
-	dbHost := os.Getenv("DB_HOST")
+	// dbUsername := os.Getenv("DB_USERNAME")
+	// dbPassword := os.Getenv("DB_PASSWORD")
+	// dbName := os.Getenv("DB_NAME")
+	// dbPort := os.Getenv("DB_PORT")
+	// dbHost := os.Getenv("DB_HOST")
 
 	defaultParams := "charset=utf8mb4&parseTime=True&loc=Local"
-	// dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?%s", "learn", "ruangguru123", "localhost", "3306", "classicmodels", defaultParams)
-	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?%s", dbUsername, dbPassword, dbHost, dbPort, dbName, defaultParams)
+	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?%s", "learn", "ruangguru123", "localhost", "3306", "book_api", defaultParams)
+	// dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?%s", dbUsername, dbPassword, dbHost, dbPort, dbName, defaultParams)
 
 	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
+
 	if err != nil {
 		log.Fatalf(err.Error())
 	}
-
-	bookRepo := book.NewBookMySqlRepository(db)
+	redisCache := redisInt.NewRedisCacheEngine(initRedis())
+	bookRepo := book.NewBookMySqlRepository(db, redisCache)
 	bookService := module.NewBookService(bookRepo)
 	bookHandler := handler.NewBookHandler(bookService)
 	authRepo := auth.NewAuthRepository(accessTokenSecret, refreshTokenSecret, 60*time.Minute, 24*time.Hour)

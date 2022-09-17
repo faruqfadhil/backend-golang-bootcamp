@@ -3,28 +3,50 @@ package book
 import (
 	"book-api/core/entity"
 	"book-api/core/repository"
+	"book-api/pkg/cache"
 	errlib "book-api/pkg/error"
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 
 	"gorm.io/gorm"
 )
 
 const (
-	bookTable = "book"
+	bookTable              = "book"
+	findByIDCacheKeyPrefix = "FindByID"
+	findAllCacheKeyPrefix  = "FindAll"
 )
 
 type bookMySqlRepository struct {
-	db *gorm.DB
+	db          *gorm.DB
+	cacheEngine cache.Cache
 }
 
-func NewBookMySqlRepository(db *gorm.DB) repository.BookRepository {
-	return &bookMySqlRepository{db: db}
+func NewBookMySqlRepository(db *gorm.DB, cacheEngine cache.Cache) repository.BookRepository {
+	return &bookMySqlRepository{db: db, cacheEngine: cacheEngine}
 }
 
 func (r *bookMySqlRepository) FindByID(ctx context.Context, ID int) (*entity.Book, error) {
 	var book *entity.Book
-	err := r.db.Debug().Table(bookTable).
+	cacheKey := fmt.Sprintf("%s:%d", findByIDCacheKeyPrefix, ID)
+	respInBytes, err := r.cacheEngine.Get(cacheKey)
+	if err != nil {
+		fmt.Println("error when fetch cache, err: ", err)
+	}
+
+	if len(respInBytes) > 0 {
+		if err := json.Unmarshal(respInBytes, &book); err != nil {
+			return nil, err
+		}
+		fmt.Println("cache hit")
+		return book, nil
+	}
+
+	fmt.Println("cache miss.. try to fetch from DB")
+
+	err = r.db.Debug().Table(bookTable).
 		Where("id = ?", ID).
 		Where("is_deleted = ?", false).
 		Take(&book).Error
@@ -34,6 +56,17 @@ func (r *bookMySqlRepository) FindByID(ctx context.Context, ID int) (*entity.Boo
 		}
 		return nil, errlib.ErrDatabaseError
 	}
+
+	dataInBytes, err := json.Marshal(book)
+	if err != nil {
+		return nil, err
+	}
+
+	err = r.cacheEngine.Set(cacheKey, dataInBytes, 3600)
+	if err != nil {
+		return nil, err
+	}
+
 	return book, nil
 }
 func (r *bookMySqlRepository) Insert(ctx context.Context, book *entity.Book) error {
@@ -50,10 +83,35 @@ func (r *bookMySqlRepository) Insert(ctx context.Context, book *entity.Book) err
 
 func (r *bookMySqlRepository) FindAll(ctx context.Context) ([]*entity.Book, error) {
 	var books []*entity.Book
-	err := r.db.Debug().Table(bookTable).Where("is_deleted = ?", false).
+	cacheKey := findAllCacheKeyPrefix
+	respInBytes, err := r.cacheEngine.Get(cacheKey)
+	if err != nil {
+		fmt.Println("error when fetch cache, err: ", err)
+	}
+
+	if len(respInBytes) > 0 {
+		if err := json.Unmarshal(respInBytes, &books); err != nil {
+			return nil, err
+		}
+		fmt.Println("cache hit")
+		return books, nil
+	}
+
+	fmt.Println("cache miss.. try to fetch from DB")
+	err = r.db.Debug().Table(bookTable).Where("is_deleted = ?", false).
 		Find(&books).Error
 	if err != nil {
 		return nil, errlib.ErrDatabaseError
+	}
+
+	dataInBytes, err := json.Marshal(books)
+	if err != nil {
+		return nil, err
+	}
+
+	err = r.cacheEngine.Set(cacheKey, dataInBytes, 3600)
+	if err != nil {
+		return nil, err
 	}
 	return books, nil
 }
@@ -64,6 +122,12 @@ func (r *bookMySqlRepository) Update(ctx context.Context, book *entity.Book) err
 	if err != nil {
 		return errlib.ErrDatabaseError
 	}
+
+	err = r.cacheEngine.Del(fmt.Sprintf("%s:%d", findByIDCacheKeyPrefix, book.ID), findAllCacheKeyPrefix)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
