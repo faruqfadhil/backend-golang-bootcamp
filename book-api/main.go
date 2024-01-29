@@ -4,7 +4,6 @@ import (
 	"book-api/core/module"
 	"book-api/handler"
 	"book-api/pkg/api"
-	redisInt "book-api/pkg/cache/redis"
 	"book-api/repository/auth"
 	"book-api/repository/book"
 	"fmt"
@@ -38,7 +37,8 @@ func main() {
 	}
 	redisCache := redisInt.NewRedisCacheEngine(initRedis())
 	bookRepo := book.NewBookMySqlRepository(db, redisCache)
-	bookService := module.NewBookService(bookRepo)
+	bookELK := book.NewELK()
+	bookService := module.NewBookService(bookELK, bookRepo)
 	bookHandler := handler.NewBookHandler(bookService)
 	authRepo := auth.NewAuthRepository(accessTokenSecret, refreshTokenSecret, 60*time.Minute, 24*time.Hour)
 	authService := module.NewAuthService(authRepo)
