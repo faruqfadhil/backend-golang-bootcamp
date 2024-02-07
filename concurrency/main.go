@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"sync"
 	"time"
 )
 
@@ -22,7 +23,11 @@ func main() {
 	// mainHelloWithChanAndSleep()
 	// mainSendDataUnidirect()
 	// mainproducer()
-	mainproducerWithoutRange()
+	// mainproducerWithoutRange()
+	// mainWriteBufferChan()
+	// mainSelect()
+	// mainProcessWithWg()
+	mainIncrementRC()
 }
 
 func multipleGoroutine() {
@@ -49,7 +54,7 @@ func helloWithChan(done chan bool) {
 	done <- true
 }
 func mainChan() {
-	done := make(chan bool)
+	done := make(chan bool, 0)
 	go helloWithChan(done)
 	<-done
 	fmt.Println("main function")
@@ -114,4 +119,80 @@ func mainproducerWithoutRange() {
 		}
 		fmt.Println("Received ", v)
 	}
+}
+
+func writeBufferChan(ch chan int) {
+	for i := 0; i < 5; i++ {
+		ch <- i
+		fmt.Println("successfully wrote", i, "to ch")
+	}
+	close(ch)
+}
+func mainWriteBufferChan() {
+	ch := make(chan int, 2)
+	go writeBufferChan(ch)
+	time.Sleep(2 * time.Second)
+	for v := range ch {
+		fmt.Println("read value", v, "from ch")
+		time.Sleep(2 * time.Second)
+	}
+}
+
+func server1(ch chan string) {
+	time.Sleep(6 * time.Second)
+	ch <- "from server1"
+}
+func server2(ch chan string) {
+	time.Sleep(3 * time.Second)
+	ch <- "from server2"
+
+}
+func mainSelect() {
+	output1 := make(chan string)
+	output2 := make(chan string)
+	go server1(output1)
+	go server2(output2)
+	select {
+	case s1 := <-output1:
+		fmt.Println(s1)
+	case s2 := <-output2:
+		fmt.Println(s2)
+	}
+}
+
+func processWithWg(i int, wg *sync.WaitGroup) {
+	fmt.Println("started Goroutine ", i)
+	time.Sleep(2 * time.Second)
+	fmt.Printf("Goroutine %d ended\n", i)
+	wg.Done()
+}
+
+func mainProcessWithWg() {
+	no := 3
+	var wg sync.WaitGroup
+	for i := 0; i < no; i++ {
+		wg.Add(1)
+		go processWithWg(i, &wg)
+	}
+	wg.Wait()
+	fmt.Println("All go routines finished executing")
+}
+
+var x = 0
+
+func incrementRC(wg *sync.WaitGroup, m *sync.Mutex) {
+	m.Lock()
+	x = x + 1
+	m.Unlock()
+	wg.Done()
+}
+func mainIncrementRC() {
+	var w sync.WaitGroup
+	var m sync.Mutex
+	for i := 0; i < 1000; i++ {
+		w.Add(1)
+		go incrementRC(&w, &m)
+	}
+	w.Wait()
+	fmt.Println("final value of x", x)
 }
