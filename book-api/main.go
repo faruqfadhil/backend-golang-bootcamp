@@ -7,14 +7,11 @@ import (
 	"book-api/repository/auth"
 	"book-api/repository/book"
 	"fmt"
-	"log"
 	"os"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gomodule/redigo/redis"
-	"gorm.io/driver/mysql"
-	"gorm.io/gorm"
 )
 
 func main() {
@@ -26,19 +23,19 @@ func main() {
 	// dbPort := os.Getenv("DB_PORT")
 	// dbHost := os.Getenv("DB_HOST")
 
-	defaultParams := "charset=utf8mb4&parseTime=True&loc=Local"
-	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?%s", "learn", "ruangguru123", "localhost", "3306", "book_api", defaultParams)
+	// defaultParams := "charset=utf8mb4&parseTime=True&loc=Local"
+	// dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?%s", "learn", "ruangguru123", "localhost", "3306", "book_api", defaultParams)
 	// dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?%s", dbUsername, dbPassword, dbHost, dbPort, dbName, defaultParams)
 
-	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
+	// db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
 
-	if err != nil {
-		log.Fatalf(err.Error())
-	}
-	redisCache := redisInt.NewRedisCacheEngine(initRedis())
-	bookRepo := book.NewBookMySqlRepository(db, redisCache)
-	bookELK := book.NewELK()
-	bookService := module.NewBookService(bookELK, bookRepo)
+	// if err != nil {
+	// 	log.Fatalf(err.Error())
+	// }
+	// redisCache := redisInt.NewRedisCacheEngine(initRedis())
+	// bookRepo := book.NewBookMySqlRepository(db, redisCache)
+	bookRepo := book.NewBookRepo()
+	bookService := module.NewBookService(bookRepo)
 	bookHandler := handler.NewBookHandler(bookService)
 	authRepo := auth.NewAuthRepository(accessTokenSecret, refreshTokenSecret, 60*time.Minute, 24*time.Hour)
 	authService := module.NewAuthService(authRepo)
@@ -58,6 +55,8 @@ func main() {
 		adminGroup.PATCH("/author", bookHandler.UpdateAuthor)
 		adminGroup.DELETE("/:id", bookHandler.DeleteByID)
 	}
+
+	// POST localhost/admin/create
 
 	studentGroup := router.Group("/student")
 	studentGroup.Use(middlewareSvc.AuthticateRequest())

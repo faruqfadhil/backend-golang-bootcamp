@@ -18,11 +18,10 @@ type BookService interface {
 }
 
 type bookService struct {
-	repo       repository.BookRepository
-	repoBackup repository.BookRepository
+	repo repository.BookRepository
 }
 
-func NewBookService(repo repository.BookRepository, repoBackup repository.BookRepository) BookService {
+func NewBookService(repo repository.BookRepository) BookService {
 	return &bookService{
 		repo: repo,
 	}
